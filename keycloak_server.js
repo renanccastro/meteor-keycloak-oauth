@@ -132,6 +132,5 @@ var getIdentity = function(accessToken) {
 };
 
 Keycloak.retrieveCredential = function(credentialToken, credentialSecret) {
-  console.log('antes');
   return OAuth.retrieveCredential(credentialToken, credentialSecret);
 };
