@@ -4,46 +4,48 @@ Keycloak.handleAuthFromAccessToken = function handleAuthFromAccessToken(
   accessToken,
   expiresAt
 ) {
-  var whitelisted = [
-    "email",
-    "name",
-    "given_name",
-    "family_name",
-    "picture",
-    "preferred_username",
-    "roles"
+  const whitelisted = [
+    'email',
+    'name',
+    'given_name',
+    'family_name',
+    'picture',
+    'preferred_username',
+    'roles',
   ];
 
-  var identity = getIdentity(accessToken);
+  const identity = getIdentity(accessToken);
 
-  var serviceData = {
-    accessToken: accessToken,
-    expiresAt: expiresAt,
-    id: identity.sub
+  const serviceData = {
+    accessToken,
+    expiresAt,
+    id: identity.sub,
+    userId: identity.sub,
   };
-
-  var fields = _.pick(identity, whitelisted);
+  const fields = _.pick(identity, whitelisted);
   _.extend(serviceData, fields);
 
-  return {
-    serviceData: serviceData,
-    options: { profile: { name: identity.name } }
+  const returnObj = {
+    serviceData,
+    options: { profile: { name: identity.name } },
   };
+  return returnObj;
 };
 
-OAuth.registerService("keycloak", 2, null, function(query) {
-  var response = getTokenResponse(query);
-  var accessToken = response.accessToken;
-  var expiresIn = response.expiresIn;
+OAuth.registerService('keycloak', 2, null, function(query) {
+  const response = getTokenResponse(query);
+  const accessToken = response.accessToken;
+  const expiresIn = response.expiresIn;
 
-  return Keycloak.handleAuthFromAccessToken(
+  const newResponse = Keycloak.handleAuthFromAccessToken(
     accessToken,
     +new Date() + 1000 * expiresIn
   );
+  return newResponse;
 });
 
 // checks whether a string parses as JSON
-var isJSON = function(str) {
+const isJSON = function(str) {
   try {
     JSON.parse(str);
     return true;
@@ -56,79 +58,80 @@ var isJSON = function(str) {
 // - accessToken
 // - expiresIn: lifetime of token in seconds
 var getTokenResponse = function(query) {
-  var config = ServiceConfiguration.configurations.findOne({
-    service: "keycloak"
+  const config = ServiceConfiguration.configurations.findOne({
+    service: 'keycloak',
   });
   if (!config) throw new ServiceConfiguration.ConfigError();
 
-  var responseContent;
+  let responseContent;
   try {
     // Request an access token
-    var params = {
-      grant_type: "authorization_code",
+    const params = {
+      grant_type: 'authorization_code',
       client_id: config.clientId,
-      redirect_uri: OAuth._redirectUri("keycloak", config),
-      code: query.code
+      redirect_uri: OAuth._redirectUri('keycloak', config),
+      code: query.code,
     };
     if (config.secret) {
       params.client_secret = OAuth.openSecret(config.secret);
     }
     responseContent = HTTP.post(
-      `${config.authServerUrl}/auth/realms/${
+      `${config.authServerUrl}/realms/${
         config.realm
       }/protocol/openid-connect/token`,
       {
-        params: params
+        params,
       }
     ).data;
   } catch (err) {
     throw _.extend(
       new Error(
-        "Failed to complete OAuth handshake with Keycloak. " + err.message
+        `Failed to complete OAuth handshake with Keycloak. ${err.message}`
       ),
       { response: err.response }
     );
   }
 
-  var kcAccessToken = responseContent.access_token;
-  var kcExpires = responseContent.expires_in;
+  const kcAccessToken = responseContent.access_token;
+  const kcExpires = responseContent.expires_in;
 
   if (!kcAccessToken) {
     throw new Error(
-      "Failed to complete OAuth handshake with keycloak " +
-        "-- can't find access token in HTTP response. " +
-        responseContent
+      `${'Failed to complete OAuth handshake with keycloak ' +
+        "-- can't find access token in HTTP response. "}${
+        responseContent}`
     );
   }
   return {
     accessToken: kcAccessToken,
-    expiresIn: kcExpires
+    expiresIn: kcExpires,
   };
 };
 
 var getIdentity = function(accessToken) {
-  var config = ServiceConfiguration.configurations.findOne({
-    service: "keycloak"
+  const config = ServiceConfiguration.configurations.findOne({
+    service: 'keycloak',
   });
   if (!config) throw new ServiceConfiguration.ConfigError();
 
   try {
     return HTTP.get(
-      `${config.authServerUrl}/auth/realms/${
+      `${config.authServerUrl}/realms/${
         config.realm
       }/protocol/openid-connect/userinfo`,
       {
-        headers: { Authorization: "Bearer " + accessToken }
+        headers: { Authorization: `Bearer ${accessToken}` },
       }
     ).data;
   } catch (err) {
     throw _.extend(
-      new Error("Failed to fetch identity from Keycloak. " + err.message),
+      new Error(`Failed to fetch identity from Keycloak. ${err.message}`),
       { response: err.response }
     );
   }
 };
 
 Keycloak.retrieveCredential = function(credentialToken, credentialSecret) {
+  console.log('antes');
   return OAuth.retrieveCredential(credentialToken, credentialSecret);
 };
